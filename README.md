@@ -39,12 +39,17 @@ Requires Node 22+ and ffmpeg/ffprobe on PATH.
 ```bash
 npm install
 npx playwright install chromium     # downloads the browser (not needed to typecheck)
-cp .env.example .env                # fill in NEO_USERNAME / NEO_PASSWORD
+cp .env.example .env                # hai-neo uses MS SSO — no creds needed here
 ```
 
 ## Run the single-video happy path
 
 ```bash
+# 0: log in ONCE by hand (Microsoft SSO + MFA). Opens a browser; complete login,
+#    then press ENTER to save the session to data/auth.json. Re-run only when it
+#    expires. Recording runs reuse this session and never touch the login flow.
+npm run login -- --storyboard storyboards/example-projects-overview.json
+
 # 1–2: validate + record, then it pauses at the review gate
 npm run cli -- run --storyboard storyboards/example-projects-overview.json
 

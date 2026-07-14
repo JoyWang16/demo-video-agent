@@ -7,6 +7,8 @@ export const DATA_DIR = path.join(ROOT, "data");
 export const RUNS_DIR = path.join(DATA_DIR, "runs");
 export const OUTPUTS_DIR = path.join(ROOT, "outputs");
 export const MANIFEST_CSV = path.join(OUTPUTS_DIR, "manifest.csv");
+/** Reusable session saved by `login` (manual MS SSO/MFA). Survives across runs. */
+export const AUTH_STATE_PATH = path.join(DATA_DIR, "auth.json");
 
 export function ensureDirs() {
   for (const d of [DATA_DIR, RUNS_DIR, OUTPUTS_DIR]) {

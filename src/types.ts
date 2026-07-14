@@ -60,9 +60,11 @@ export type Beat = z.infer<typeof BeatSchema>;
 // ---- Auth config: how to log in (off-camera). Selectors are config, not code
 export const AuthConfigSchema = z.object({
   loginUrl: z.string().url(),
-  usernameSelector: z.string(),
-  passwordSelector: z.string(),
-  submitSelector: z.string(),
+  // Only needed for automated username/password login. SSO/MFA apps use the
+  // `login` command instead and can omit these.
+  usernameSelector: z.string().optional(),
+  passwordSelector: z.string().optional(),
+  submitSelector: z.string().optional(),
   // secret env var names, e.g. "NEO_USERNAME"; resolved at runtime only
   usernameEnv: z.string().default("NEO_USERNAME"),
   passwordEnv: z.string().default("NEO_PASSWORD"),

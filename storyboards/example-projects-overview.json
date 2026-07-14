@@ -13,11 +13,6 @@
   },
   "auth": {
     "loginUrl": "https://app.hai-neo.com/home",
-    "usernameSelector": "input[type=email]",
-    "passwordSelector": "input[type=password]",
-    "submitSelector": "button[type=submit]",
-    "usernameEnv": "NEO_USERNAME",
-    "passwordEnv": "NEO_PASSWORD",
     "successUrlIncludes": "/home"
   },
   "beats": [

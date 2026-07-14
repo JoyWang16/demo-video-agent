@@ -8,6 +8,7 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "cli": "node --experimental-strip-types src/cli.ts",
+    "login": "node --experimental-strip-types src/cli.ts login",
     "run:example": "node --experimental-strip-types src/cli.ts run --storyboard storyboards/example-projects-overview.json",
     "resume": "node --experimental-strip-types src/cli.ts resume",
     "evaluate": "node --experimental-strip-types src/cli.ts evaluate"

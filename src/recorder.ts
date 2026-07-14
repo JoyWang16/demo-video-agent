@@ -2,7 +2,7 @@ import path from "node:path";
 import fs from "node:fs";
 import { chromium, type Browser, type BrowserContext } from "playwright";
 import type { Action, AuthConfig, Beat, Storyboard } from "./types.ts";
-import { HEADFUL, resolveSecret } from "./config.ts";
+import { HEADFUL, resolveSecret, AUTH_STATE_PATH } from "./config.ts";
 
 /**
  * Log in ONCE in a throwaway, non-recorded context, then persist the session
@@ -13,6 +13,9 @@ async function authenticate(browser: Browser, auth: AuthConfig, storageStatePath
   const ctx = await browser.newContext();
   const page = await ctx.newPage();
   try {
+    if (!auth.usernameSelector || !auth.passwordSelector || !auth.submitSelector) {
+      throw new Error("Automated login needs username/password/submit selectors; use the `login` command for SSO.");
+    }
     await page.goto(auth.loginUrl, { waitUntil: "domcontentloaded" });
     await page.fill(auth.usernameSelector, resolveSecret(`$${auth.usernameEnv}`));
     await page.fill(auth.passwordSelector, resolveSecret(`$${auth.passwordEnv}`));
@@ -29,6 +32,32 @@ async function authenticate(browser: Browser, auth: AuthConfig, storageStatePath
   } finally {
     await ctx.close();
   }
+}
+
+/**
+ * Decide which session to record with. Priority:
+ *  1) a session saved by `login` (data/auth.json) — the MS SSO/MFA path;
+ *  2) automated credential login (only for simple username/password apps);
+ *  3) otherwise, a clear instruction to run `login`.
+ */
+async function resolveSession(browser: Browser, sb: Storyboard, outDir: string): Promise<string> {
+  if (fs.existsSync(AUTH_STATE_PATH)) {
+    console.log(`  Using saved session (${path.relative(process.cwd(), AUTH_STATE_PATH)}).`);
+    return AUTH_STATE_PATH;
+  }
+  const hasCreds =
+    process.env[sb.auth.usernameEnv] && process.env[sb.auth.passwordEnv];
+  if (hasCreds) {
+    const p = path.join(outDir, "auth.json");
+    await authenticate(browser, sb.auth, p);
+    return p;
+  }
+  throw new Error(
+    "No saved session and no credentials.\n" +
+      "  This app uses SSO/MFA, so log in once by hand:\n" +
+      "    npm run cli -- login --storyboard <your storyboard.json>\n" +
+      "  Then re-run. (For simple username/password apps, set NEO_USERNAME/NEO_PASSWORD in .env instead.)"
+  );
 }
 
 async function runAction(page: import("playwright").Page, a: Action): Promise<void> {
@@ -72,17 +101,15 @@ export async function recordStoryboard(sb: Storyboard, outDir: string): Promise<
   fs.mkdirSync(outDir, { recursive: true });
   const clipsDir = path.join(outDir, "clips");
   fs.mkdirSync(clipsDir, { recursive: true });
-  const storageStatePath = path.join(outDir, "auth.json");
-
   const browser = await chromium.launch({ headless: !HEADFUL });
   const clips: RecordedClip[] = [];
   try {
-    await authenticate(browser, sb.auth, storageStatePath);
+    const sessionPath = await resolveSession(browser, sb, outDir);
     const { width, height } = sb.spec.resolution;
 
     for (const beat of sb.beats) {
       const ctx: BrowserContext = await browser.newContext({
-        storageState: storageStatePath,
+        storageState: sessionPath,
         viewport: { width, height },
         recordVideo: { dir: clipsDir, size: { width, height } },
       });

@@ -1,4 +1,5 @@
 import { startRun, resumeRun } from "./orchestrator.ts";
+import { manualLogin } from "./login.ts";
 import { loadState } from "./runstate.ts";
 import { evaluateVideo, printScorecard } from "./eval/evaluate.ts";
 
@@ -17,6 +18,12 @@ function list(flag: string): string[] {
 async function main() {
   const cmd = process.argv[2];
   switch (cmd) {
+    case "login": {
+      const storyboard = arg("--storyboard");
+      if (!storyboard) throw new Error("usage: login --storyboard <file>");
+      await manualLogin(storyboard);
+      break;
+    }
     case "run": {
       const storyboard = arg("--storyboard");
       if (!storyboard) throw new Error("usage: run --storyboard <file>");
@@ -56,7 +63,7 @@ async function main() {
       break;
     }
     default:
-      console.log("Commands:\n  run --storyboard <file>\n  resume --run <id> [--approve-all|--approve a,b|--reject c]\n  evaluate (--run <id> | --video <file> [--target <sec>])");
+      console.log("Commands:\n  login --storyboard <file>\n  run --storyboard <file>\n  resume --run <id> [--approve-all|--approve a,b|--reject c]\n  evaluate (--run <id> | --video <file> [--target <sec>])");
   }
 }
 
