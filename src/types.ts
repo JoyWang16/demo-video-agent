@@ -39,6 +39,8 @@ export const ActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("waitForSelector"), selector: z.string(), timeoutMs: z.number().optional() }),
   z.object({ type: z.literal("waitMs"), ms: z.number().int().positive() }),
   z.object({ type: z.literal("scrollTo"), selector: z.string() }),
+  // select an <option> in a dropdown by its value (e.g. a duration selector)
+  z.object({ type: z.literal("selectOption"), selector: z.string(), value: z.string() }),
   // fill is allowed only for non-destructive inputs (search boxes, filters).
   // Values may reference env secrets via "$VAR" and are resolved at runtime,
   // never logged. Login is handled separately, off-camera (see recorder.ts).
@@ -54,6 +56,9 @@ export const BeatSchema = z.object({
   actions: z.array(ActionSchema).min(1),
   maxDurationSec: z.number().positive().default(20), // safety cap per clip
   leadTrimSec: z.number().min(0).default(0.4), // trim initial blank/nav frames
+  // Hold after this beat's actions finish (the caption shows during this window).
+  // Omit to auto-compute from caption reading time (see timing.ts).
+  dwellSec: z.number().positive().optional(),
 });
 export type Beat = z.infer<typeof BeatSchema>;
 
@@ -94,6 +99,7 @@ export interface ClipRecord {
   beatId: string;
   caption: string;
   rawPath: string; // .webm captured by Playwright
+  captionStartSec: number; // offset within the clip where the caption appears (after actions settle)
   durationSec?: number;
   approved: boolean | null; // null = awaiting human decision
   rejectionReason?: string;

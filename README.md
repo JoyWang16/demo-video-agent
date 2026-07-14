@@ -15,8 +15,9 @@ separated so it maps onto the Convex + TanStack version later (see bottom).
                                         │  (validate: duration budget,
                                         │   destructive-action denylist)
                                         ▼
-        [2 RECORD]  auth off-camera ──▶ one headless Playwright context PER BEAT
-                                        │  each beat → one .webm clip
+        [2 RECORD]  auth off-camera ──▶ ONE continuous browser session
+                                        │  recorded, then split by timestamp
+                                        │  into one clip per beat
                                         ▼
                        ══════ HUMAN REVIEW GATE (status: pending_review) ══════
                                         │  approve/reject per clip (file or flag)

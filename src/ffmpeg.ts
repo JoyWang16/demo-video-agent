@@ -5,8 +5,8 @@ import path from "node:path";
 
 const pexec = promisify(execFile);
 
-export async function run(bin: string, args: string[]): Promise<string> {
-  const { stdout, stderr } = await pexec(bin, args, { maxBuffer: 1024 * 1024 * 64 });
+export async function run(bin: string, args: string[], cwd?: string): Promise<string> {
+  const { stdout, stderr } = await pexec(bin, args, { maxBuffer: 1024 * 1024 * 64, cwd });
   return stdout || stderr;
 }
 
@@ -35,25 +35,43 @@ export async function probe(file: string): Promise<MediaInfo> {
   };
 }
 
-function srtTime(sec: number): string {
-  const ms = Math.max(0, Math.round(sec * 1000));
-  const h = Math.floor(ms / 3_600_000);
-  const m = Math.floor((ms % 3_600_000) / 60_000);
-  const s = Math.floor((ms % 60_000) / 1000);
-  const rem = ms % 1000;
+function assTime(sec: number): string {
+  const cs = Math.max(0, Math.round(sec * 100));
+  const h = Math.floor(cs / 360_000);
+  const m = Math.floor((cs % 360_000) / 6_000);
+  const s = Math.floor((cs % 6_000) / 100);
+  const rem = cs % 100;
   const p = (n: number, w = 2) => String(n).padStart(w, "0");
-  return `${p(h)}:${p(m)}:${p(s)},${p(rem, 3)}`;
+  return `${h}:${p(m)}:${p(s)}.${p(rem)}`;
 }
 
-/** One caption cue spanning the whole clip. */
-export function writeSrt(file: string, caption: string, durationSec: number) {
-  const body = `1\n${srtTime(0)} --> ${srtTime(durationSec)}\n${caption}\n`;
-  fs.writeFileSync(file, body, "utf8");
-}
+/**
+ * Write a styled ASS subtitle with one caption cue spanning the clip. Styling
+ * lives inside the file (BorderStyle=3 = opaque box, Alignment=2 = bottom
+ * centre), so the ffmpeg `subtitles` filter needs NO force_style — which avoids
+ * the comma/escaping bugs that plague force_style in a filter chain.
+ */
+export function writeAss(file: string, caption: string, startSec: number, endSec: number, width: number, height: number) {
+  const fontSize = Math.max(18, Math.round(height * 0.045));
+  const marginV = Math.round(height * 0.06);
+  const text = caption.trim().replace(/\r?\n/g, "\\N").replace(/[{}]/g, "");
+  const ass = `[Script Info]
+ScriptType: v4.00+
+PlayResX: ${width}
+PlayResY: ${height}
+WrapStyle: 0
+ScaledBorderAndShadow: yes
 
-const CAPTION_STYLE =
-  "FontName=DejaVu Sans,Fontsize=22,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000," +
-  "BorderStyle=3,Outline=2,Shadow=0,Alignment=2,MarginV=28";
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,Arial,${fontSize},&H00FFFFFF,&H00000000,&H96000000,0,0,0,0,100,100,0,0,3,6,0,2,40,40,${marginV},1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,${assTime(startSec)},${assTime(endSec)},Default,,0,0,0,,${text}
+`;
+  fs.writeFileSync(file, ass, "utf8");
+}
 
 /**
  * Normalize one clip to uniform mp4 (h264), scaled/padded to target size,
@@ -68,9 +86,10 @@ export async function processClip(opts: {
   fps?: number;
   leadTrimSec?: number;
   caption?: string; // undefined/empty => no captions
+  captionStartSec?: number; // when the caption appears within the clip (after actions settle)
   workDir: string;
 }): Promise<void> {
-  const { input, output, width, height, fps = 30, leadTrimSec = 0, caption, workDir } = opts;
+  const { input, output, width, height, fps = 30, leadTrimSec = 0, caption, captionStartSec = 0, workDir } = opts;
   const info = await probe(input);
   const effectiveDur = Math.max(0.1, info.durationSec - leadTrimSec);
 
@@ -85,11 +104,15 @@ export async function processClip(opts: {
   args.push("-i", input);
 
   if (caption && caption.trim()) {
-    const srt = path.join(workDir, `${path.basename(output)}.srt`);
-    writeSrt(srt, caption.trim(), effectiveDur);
-    // escape for ffmpeg filter argument
-    const esc = srt.replace(/\\/g, "\\\\").replace(/:/g, "\\:").replace(/'/g, "\\'");
-    vf.push(`subtitles='${esc}':force_style='${CAPTION_STYLE}'`);
+    const assName = `${path.parse(output).name}.ass`; // e.g. b1-catalog.ass (single dot)
+    // Caption appears only from captionStartSec (once the page has settled after
+    // this beat's actions) to the end of the clip — never over a loading screen.
+    const start = Math.min(Math.max(0, captionStartSec - leadTrimSec), Math.max(0, effectiveDur - 0.3));
+    writeAss(path.join(workDir, assName), caption, start, effectiveDur, width, height);
+    // Reference the subtitle by BASENAME, single-quoted, with cwd=workDir. This
+    // is the form ffmpeg's filtergraph parser (incl. the stricter v7/v8 parser)
+    // accepts: no slashes/colons/commas, value quoted.
+    vf.push(`subtitles='${assName}'`);
   }
 
   args.push(
@@ -100,7 +123,7 @@ export async function processClip(opts: {
     "-pix_fmt", "yuv420p",
     output
   );
-  await run("ffmpeg", args);
+  await run("ffmpeg", args, workDir);
 }
 
 /** Concatenate uniform mp4 clips (concat demuxer, stream copy). */
@@ -108,6 +131,19 @@ export async function concat(clips: string[], output: string, workDir: string): 
   const list = path.join(workDir, "concat.txt");
   fs.writeFileSync(list, clips.map((c) => `file '${c.replace(/'/g, "'\\''")}'`).join("\n"), "utf8");
   await run("ffmpeg", ["-y", "-f", "concat", "-safe", "0", "-i", list, "-c", "copy", output]);
+}
+
+/** Cut a segment [startSec, startSec+durationSec) from a video, re-encoded for
+ * frame-accurate boundaries (used to split the continuous take into beat clips). */
+export async function cutClip(input: string, output: string, startSec: number, durationSec: number): Promise<void> {
+  await run("ffmpeg", [
+    "-y",
+    "-ss", startSec.toFixed(3),
+    "-i", input,
+    "-t", Math.max(0.1, durationSec).toFixed(3),
+    "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", "-an",
+    output,
+  ]);
 }
 
 /** Extract N evenly-spaced frames as PNGs (used by the evaluator). */

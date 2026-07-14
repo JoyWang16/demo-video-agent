@@ -1,66 +1,12 @@
 import path from "node:path";
 import fs from "node:fs";
-import { chromium, type Browser, type BrowserContext } from "playwright";
-import type { Action, AuthConfig, Beat, Storyboard } from "./types.ts";
-import { HEADFUL, resolveSecret, AUTH_STATE_PATH } from "./config.ts";
+import { chromium, type BrowserContext, type Page } from "playwright";
+import type { Action, Storyboard } from "./types.ts";
+import { HEADFUL, resolveSecret, PROFILE_DIR } from "./config.ts";
+import { cutClip } from "./ffmpeg.ts";
+import { computeDwellSec } from "./timing.ts";
 
-/**
- * Log in ONCE in a throwaway, non-recorded context, then persist the session
- * to a storageState file. Recording contexts reuse it so clips never contain
- * the login flow (cleaner takes) and credentials never appear on camera.
- */
-async function authenticate(browser: Browser, auth: AuthConfig, storageStatePath: string): Promise<void> {
-  const ctx = await browser.newContext();
-  const page = await ctx.newPage();
-  try {
-    if (!auth.usernameSelector || !auth.passwordSelector || !auth.submitSelector) {
-      throw new Error("Automated login needs username/password/submit selectors; use the `login` command for SSO.");
-    }
-    await page.goto(auth.loginUrl, { waitUntil: "domcontentloaded" });
-    await page.fill(auth.usernameSelector, resolveSecret(`$${auth.usernameEnv}`));
-    await page.fill(auth.passwordSelector, resolveSecret(`$${auth.passwordEnv}`));
-    await page.click(auth.submitSelector);
-
-    if (auth.successSelector) {
-      await page.waitForSelector(auth.successSelector, { timeout: 30_000 });
-    } else if (auth.successUrlIncludes) {
-      await page.waitForURL((url) => url.href.includes(auth.successUrlIncludes!), { timeout: 30_000 });
-    } else {
-      await page.waitForLoadState("networkidle");
-    }
-    await ctx.storageState({ path: storageStatePath });
-  } finally {
-    await ctx.close();
-  }
-}
-
-/**
- * Decide which session to record with. Priority:
- *  1) a session saved by `login` (data/auth.json) — the MS SSO/MFA path;
- *  2) automated credential login (only for simple username/password apps);
- *  3) otherwise, a clear instruction to run `login`.
- */
-async function resolveSession(browser: Browser, sb: Storyboard, outDir: string): Promise<string> {
-  if (fs.existsSync(AUTH_STATE_PATH)) {
-    console.log(`  Using saved session (${path.relative(process.cwd(), AUTH_STATE_PATH)}).`);
-    return AUTH_STATE_PATH;
-  }
-  const hasCreds =
-    process.env[sb.auth.usernameEnv] && process.env[sb.auth.passwordEnv];
-  if (hasCreds) {
-    const p = path.join(outDir, "auth.json");
-    await authenticate(browser, sb.auth, p);
-    return p;
-  }
-  throw new Error(
-    "No saved session and no credentials.\n" +
-      "  This app uses SSO/MFA, so log in once by hand:\n" +
-      "    npm run cli -- login --storyboard <your storyboard.json>\n" +
-      "  Then re-run. (For simple username/password apps, set NEO_USERNAME/NEO_PASSWORD in .env instead.)"
-  );
-}
-
-async function runAction(page: import("playwright").Page, a: Action): Promise<void> {
+async function runAction(page: Page, a: Action): Promise<void> {
   switch (a.type) {
     case "goto":
       await page.goto(a.url, { waitUntil: "domcontentloaded" });
@@ -83,6 +29,9 @@ async function runAction(page: import("playwright").Page, a: Action): Promise<vo
     case "fill":
       await page.fill(a.selector, resolveSecret(a.value));
       break;
+    case "selectOption":
+      await page.selectOption(a.selector, a.value);
+      break;
   }
 }
 
@@ -90,50 +39,109 @@ export interface RecordedClip {
   beatId: string;
   caption: string;
   rawPath: string;
+  captionStartSec: number;
+}
+
+const SIGN_IN_RE = /sign-in|login\.microsoftonline|\/login/i;
+
+/** Quick headless check that the persistent profile is still authenticated,
+ * BEFORE opening the recording context — so an expired session fails fast with
+ * a clear message instead of producing a broken take. */
+async function assertAuthenticated(loginUrl: string): Promise<void> {
+  if (!fs.existsSync(PROFILE_DIR)) {
+    throw new Error(
+      "No browser profile yet. Log in once:\n" +
+        "    npm run cli -- login --storyboard <your storyboard.json>"
+    );
+  }
+  const ctx = await chromium.launchPersistentContext(PROFILE_DIR, { headless: true });
+  try {
+    const page = ctx.pages()[0] ?? (await ctx.newPage());
+    await page.goto(loginUrl, { waitUntil: "domcontentloaded" });
+    await page.waitForTimeout(1500); // allow any SSO redirect to settle
+    if (SIGN_IN_RE.test(page.url())) {
+      throw new Error(
+        "Session expired — the profile is no longer logged in. Re-run:\n" +
+          "    npm run cli -- login --storyboard <your storyboard.json>"
+      );
+    }
+  } finally {
+    await ctx.close();
+  }
 }
 
 /**
- * Record one clip PER BEAT. Each beat gets its own recorded context, so clips
- * are discrete, reviewable and replaceable (approve beat 3, re-record beat 4)
- * rather than one all-or-nothing take.
+ * Record the demo as ONE continuous session (so each step starts where the last
+ * left off), then split the take into per-beat clips by timestamp. Uses the
+ * persistent profile from `login`, so it starts already authenticated.
  */
 export async function recordStoryboard(sb: Storyboard, outDir: string): Promise<RecordedClip[]> {
   fs.mkdirSync(outDir, { recursive: true });
   const clipsDir = path.join(outDir, "clips");
+  const rawDir = path.join(outDir, "raw");
   fs.mkdirSync(clipsDir, { recursive: true });
-  const browser = await chromium.launch({ headless: !HEADFUL });
+  fs.mkdirSync(rawDir, { recursive: true });
+
+  await assertAuthenticated(sb.auth.loginUrl);
+
+  const { width, height } = sb.spec.resolution;
+  const context: BrowserContext = await chromium.launchPersistentContext(PROFILE_DIR, {
+    headless: !HEADFUL,
+    viewport: { width, height },
+    recordVideo: { dir: rawDir, size: { width, height } },
+  });
   const clips: RecordedClip[] = [];
   try {
-    const sessionPath = await resolveSession(browser, sb, outDir);
-    const { width, height } = sb.spec.resolution;
+    const page = context.pages()[0] ?? (await context.newPage());
+    await page.setViewportSize({ width, height });
+    page.setDefaultTimeout(15_000); // a bad selector throws (and is caught) instead of hanging
 
+    const segments: { beatId: string; caption: string; startSec: number; captionStartSec: number }[] = [];
+    const t0 = Date.now();
     for (const beat of sb.beats) {
-      const ctx: BrowserContext = await browser.newContext({
-        storageState: sessionPath,
-        viewport: { width, height },
-        recordVideo: { dir: clipsDir, size: { width, height } },
-      });
-      const page = await ctx.newPage();
-      // Watchdog so a stuck selector can never hang the whole run.
-      const deadline = setTimeout(() => void ctx.close(), beat.maxDurationSec * 1000 + 10_000);
+      const beatStart = (Date.now() - t0) / 1000;
       try {
         for (const a of beat.actions) await runAction(page, a);
       } catch (err) {
-        console.error(`  [beat ${beat.id}] action error: ${(err as Error).message}`);
-      } finally {
-        clearTimeout(deadline);
+        console.error(`  [beat ${beat.id}] action error: ${(err as Error).message} (continuing)`);
       }
-      const video = page.video();
-      await ctx.close(); // finalizes the .webm
-      if (!video) throw new Error(`No video captured for beat ${beat.id}`);
-      const tmp = await video.path();
-      const finalRaw = path.join(clipsDir, `${beat.id}.webm`);
-      fs.renameSync(tmp, finalRaw);
-      clips.push({ beatId: beat.id, caption: beat.caption, rawPath: finalRaw });
-      console.log(`  [beat ${beat.id}] captured -> ${path.relative(process.cwd(), finalRaw)}`);
+      const actionsEnd = (Date.now() - t0) / 1000;
+      const dwellSec = beat.dwellSec ?? computeDwellSec(beat.caption, sb.spec.captions);
+      await page.waitForTimeout(Math.round(dwellSec * 1000));
+      segments.push({
+        beatId: beat.id,
+        caption: beat.caption,
+        startSec: beatStart,
+        captionStartSec: actionsEnd - beatStart, // caption begins once actions settle
+      });
+      console.log(
+        `  [beat ${beat.id}] actions ${(actionsEnd - beatStart).toFixed(1)}s + dwell ${dwellSec.toFixed(1)}s`
+      );
+    }
+    const totalSec = (Date.now() - t0) / 1000;
+
+    const video = page.video();
+    await context.close(); // finalizes the raw .webm
+    if (!video) throw new Error("No video captured");
+    const rawFull = path.join(rawDir, "full.webm");
+    fs.renameSync(await video.path(), rawFull);
+    console.log(`  raw take: ${totalSec.toFixed(1)}s -> splitting into ${segments.length} clip(s)`);
+
+    for (let i = 0; i < segments.length; i++) {
+      const s = segments[i]!;
+      const end = i + 1 < segments.length ? segments[i + 1]!.startSec : totalSec;
+      const dur = end - s.startSec;
+      const clipOut = path.join(clipsDir, `${s.beatId}.mp4`);
+      await cutClip(rawFull, clipOut, s.startSec, dur);
+      clips.push({ beatId: s.beatId, caption: s.caption, rawPath: clipOut, captionStartSec: s.captionStartSec });
+      console.log(`  [beat ${s.beatId}] clip ${dur.toFixed(1)}s -> ${path.relative(process.cwd(), clipOut)}`);
     }
   } finally {
-    await browser.close();
+    try {
+      await context.close();
+    } catch {
+      /* already closed after finalizing video */
+    }
   }
   return clips;
 }

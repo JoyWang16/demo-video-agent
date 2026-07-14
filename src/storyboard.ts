@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import { StoryboardSchema, type Storyboard } from "./types.ts";
+import { computeDwellSec } from "./timing.ts";
 
 /** Words that suggest a mutating/irreversible action. A recording must never
  * perform these against the live app. This is a coarse but cheap safety net;
@@ -28,22 +29,38 @@ export function validateStoryboard(sb: Storyboard): ValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
 
-  const estimatedMaxSec = sb.beats.reduce((sum, b) => sum + b.maxDurationSec, 0);
+  // Realistic estimate: explicit inter-action waits + a nominal per-action cost
+  // + the (computed or overridden) dwell where the caption is shown.
+  const estimatedMaxSec = sb.beats.reduce((sum, b) => {
+    const explicitWaits = b.actions.reduce((s, a) => s + (a.type === "waitMs" ? a.ms / 1000 : 0), 0);
+    const nominalActions = b.actions.filter((a) => a.type !== "waitMs").length * 1.0;
+    const dwell = b.dwellSec ?? computeDwellSec(b.caption, sb.spec.captions);
+    return sum + explicitWaits + nominalActions + dwell;
+  }, 0);
   const { targetLengthSec, tolerancePct, captions } = sb.spec;
   const upper = targetLengthSec * (1 + tolerancePct);
 
   if (estimatedMaxSec > upper) {
     warnings.push(
-      `Worst-case duration ${estimatedMaxSec}s exceeds target ${targetLengthSec}s +${Math.round(
+      `Estimated duration ~${estimatedMaxSec.toFixed(0)}s exceeds target ${targetLengthSec}s +${Math.round(
         tolerancePct * 100
-      )}% (=${upper.toFixed(1)}s). Trim beats or raise the cap.`
+      )}% (=${upper.toFixed(1)}s). Trim beats or shorten captions.`
+    );
+  }
+  if (estimatedMaxSec < targetLengthSec * (1 - tolerancePct)) {
+    warnings.push(
+      `Estimated duration ~${estimatedMaxSec.toFixed(0)}s is under target ${targetLengthSec}s -${Math.round(
+        tolerancePct * 100
+      )}%. Add beats/steps or set a lower targetLengthSec.`
     );
   }
 
   for (const b of sb.beats) {
-    const haystack = [b.caption, ...b.actions.map((a) => JSON.stringify(a))].join(" ");
-    if (DESTRUCTIVE.test(haystack)) {
-      errors.push(`Beat "${b.id}" contains a possibly destructive action/keyword. Blocked.`);
+    // Only ACTIONS can be destructive. A caption may legitimately describe a
+    // feature by name (e.g. "red-teaming") without performing it.
+    const actionText = b.actions.map((a) => JSON.stringify(a)).join(" ");
+    if (DESTRUCTIVE.test(actionText)) {
+      errors.push(`Beat "${b.id}" has a possibly destructive/costly action. Blocked.`);
     }
     if (captions && !b.caption.trim()) {
       warnings.push(`Beat "${b.id}" has no caption but spec.captions=true.`);

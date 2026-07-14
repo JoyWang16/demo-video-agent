@@ -7,8 +7,10 @@ export const DATA_DIR = path.join(ROOT, "data");
 export const RUNS_DIR = path.join(DATA_DIR, "runs");
 export const OUTPUTS_DIR = path.join(ROOT, "outputs");
 export const MANIFEST_CSV = path.join(OUTPUTS_DIR, "manifest.csv");
-/** Reusable session saved by `login` (manual MS SSO/MFA). Survives across runs. */
-export const AUTH_STATE_PATH = path.join(DATA_DIR, "auth.json");
+/** Persistent browser profile (cookies, "stay signed in" token, etc.) saved by
+ * `login` and reused by every recording — so MFA is done once, not per run.
+ * Lives under data/ (gitignored). Holds live credentials; never commit it. */
+export const PROFILE_DIR = path.join(DATA_DIR, "profile");
 
 export function ensureDirs() {
   for (const d of [DATA_DIR, RUNS_DIR, OUTPUTS_DIR]) {

@@ -34,7 +34,7 @@ export async function startRun(storyboardFile: string): Promise<RunState> {
   try {
     const clips = await recordStoryboard(sb, dir);
     state.clips = clips.map((c) => ({
-      beatId: c.beatId, caption: c.caption, rawPath: c.rawPath, approved: null,
+      beatId: c.beatId, caption: c.caption, rawPath: c.rawPath, captionStartSec: c.captionStartSec, approved: null,
     }));
     state.status = "pending_review";
     saveState(state);
@@ -93,6 +93,7 @@ export async function resumeRun(
     await processClip({
       input: clip.rawPath, output: out, width, height,
       caption: state.spec.captions ? clip.caption : undefined,
+      captionStartSec: clip.captionStartSec,
       workDir,
     });
     processed.push(out);
