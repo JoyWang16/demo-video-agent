@@ -1,0 +1,26 @@
+{
+  "name": "demo-video-agent",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "v0: automated product-demo video pipeline (Neo MCP + Playwright + ffmpeg) with a human review gate.",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "cli": "node --experimental-strip-types src/cli.ts",
+    "run:example": "node --experimental-strip-types src/cli.ts run --storyboard storyboards/example-projects-overview.json",
+    "resume": "node --experimental-strip-types src/cli.ts resume",
+    "evaluate": "node --experimental-strip-types src/cli.ts evaluate"
+  },
+  "dependencies": {
+    "@ai-sdk/azure": "^1.3.0",
+    "ai": "^4.3.0",
+    "dotenv": "^16.4.5",
+    "playwright": "^1.48.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.0",
+    "typescript": "^5.6.0"
+  }
+}

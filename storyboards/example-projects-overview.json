@@ -1,0 +1,55 @@
+{
+  "spec": {
+    "id": "neo-projects-overview",
+    "title": "Neo: Projects Overview",
+    "description": "A short walkthrough of the Projects list and opening a project to view its latest scan.",
+    "feature": "Projects list and project scan view",
+    "targetLengthSec": 30,
+    "tolerancePct": 0.4,
+    "captions": true,
+    "resolution": { "width": 1280, "height": 720 },
+    "audience": "prospective customers",
+    "tone": "clear and confident"
+  },
+  "auth": {
+    "loginUrl": "https://app.hai-neo.com/home",
+    "usernameSelector": "input[type=email]",
+    "passwordSelector": "input[type=password]",
+    "submitSelector": "button[type=submit]",
+    "usernameEnv": "NEO_USERNAME",
+    "passwordEnv": "NEO_PASSWORD",
+    "successUrlIncludes": "/home"
+  },
+  "beats": [
+    {
+      "id": "b1-projects-list",
+      "caption": "Every AI system in your org, in one place.",
+      "maxDurationSec": 8,
+      "actions": [
+        { "type": "goto", "url": "https://app.hai-neo.com/home" },
+        { "type": "waitForSelector", "selector": "text=Projects" },
+        { "type": "waitMs", "ms": 1500 }
+      ]
+    },
+    {
+      "id": "b2-open-project",
+      "caption": "Open a project to see its full governance record.",
+      "maxDurationSec": 10,
+      "actions": [
+        { "type": "click", "selector": "text=Projects", "note": "VERIFY selector against live UI" },
+        { "type": "waitMs", "ms": 800 },
+        { "type": "waitMs", "ms": 1500 }
+      ]
+    },
+    {
+      "id": "b3-view-scan",
+      "caption": "Each scan maps integrations, risks and recommendations.",
+      "maxDurationSec": 10,
+      "actions": [
+        { "type": "waitMs", "ms": 500 },
+        { "type": "scrollTo", "selector": "text=Scan", "note": "VERIFY selector against live UI" },
+        { "type": "waitMs", "ms": 2000 }
+      ]
+    }
+  ]
+}
