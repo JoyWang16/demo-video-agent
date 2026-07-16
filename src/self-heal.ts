@@ -59,6 +59,9 @@ async function candidates(page: Page): Promise<Candidate[]> {
   for (let i = 0; i < count; i++) {
     const loc = base.nth(i);
     if (!(await loc.isVisible().catch(() => false))) continue;
+    // Skip disabled elements — the model shouldn't pick them and clicking a
+    // disabled control just hangs until timeout (observed on the Attacks page).
+    if (!(await loc.isEnabled().catch(() => true))) continue;
     const info = await loc
       .evaluate((el) => {
         const e = el as unknown as {
@@ -97,8 +100,9 @@ export async function pickIndex(cands: { role: string; name: string }[], intent:
 }
 
 async function doAct(loc: Locator, kind: Kind): Promise<void> {
-  if (kind === "click") await loc.click();
-  else await loc.hover();
+  const opts = { timeout: 6000 }; // fail fast rather than hang if unclickable
+  if (kind === "click") await loc.click(opts);
+  else await loc.hover(opts);
 }
 
 export async function selfHeal(page: Page, intent: string, kind: Kind): Promise<void> {
