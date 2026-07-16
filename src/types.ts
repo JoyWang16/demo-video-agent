@@ -34,8 +34,8 @@ export type VideoSpec = z.infer<typeof VideoSpecSchema>;
 
 export const ActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("goto"), url: z.string().url() }),
-  z.object({ type: z.literal("click"), selector: z.string(), note: z.string().optional() }),
-  z.object({ type: z.literal("hover"), selector: z.string(), note: z.string().optional() }),
+  z.object({ type: z.literal("click"), selector: z.string(), intent: z.string().optional(), note: z.string().optional() }),
+  z.object({ type: z.literal("hover"), selector: z.string(), intent: z.string().optional(), note: z.string().optional() }),
   z.object({ type: z.literal("waitForSelector"), selector: z.string(), timeoutMs: z.number().optional() }),
   z.object({ type: z.literal("waitMs"), ms: z.number().int().positive() }),
   z.object({ type: z.literal("scrollTo"), selector: z.string() }),
@@ -45,6 +45,9 @@ export const ActionSchema = z.discriminatedUnion("type", [
   // Values may reference env secrets via "$VAR" and are resolved at runtime,
   // never logged. Login is handled separately, off-camera (see recorder.ts).
   z.object({ type: z.literal("fill"), selector: z.string(), value: z.string(), note: z.string().optional() }),
+  // pure natural-language step — no selector; always resolved live via act().
+  // For flows where selectors were never captured (e.g. generated storyboards).
+  z.object({ type: z.literal("act"), intent: z.string(), note: z.string().optional() }),
 ]);
 export type Action = z.infer<typeof ActionSchema>;
 
@@ -83,6 +86,9 @@ export const StoryboardSchema = z.object({
   spec: VideoSpecSchema,
   auth: AuthConfigSchema,
   beats: z.array(BeatSchema).min(1),
+  // Optional key selectors that MUST exist for this storyboard to be valid.
+  // If omitted, the preflight derives them from the beats' waitForSelector anchors.
+  waypoints: z.array(z.string()).optional(),
 });
 export type Storyboard = z.infer<typeof StoryboardSchema>;
 

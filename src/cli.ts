@@ -1,5 +1,7 @@
 import { startRun, resumeRun } from "./orchestrator.ts";
 import { manualLogin } from "./login.ts";
+import { exploreTools, exploreInventory } from "./comprehension/explore.ts";
+import { probeAct } from "./probe-act.ts";
 import { loadState } from "./runstate.ts";
 import { evaluateVideo, printScorecard } from "./eval/evaluate.ts";
 
@@ -18,6 +20,18 @@ function list(flag: string): string[] {
 async function main() {
   const cmd = process.argv[2];
   switch (cmd) {
+    case "probe-act": {
+      const url = arg("--url");
+      const intent = arg("--intent");
+      if (!url || !intent) throw new Error('usage: probe-act --url <url> --intent "<natural language action>"');
+      await probeAct(url, intent);
+      break;
+    }
+    case "explore": {
+      if (has("--tools")) await exploreTools();
+      else await exploreInventory({ full: has("--full") });
+      break;
+    }
     case "login": {
       const storyboard = arg("--storyboard");
       if (!storyboard) throw new Error("usage: login --storyboard <file>");
@@ -63,7 +77,7 @@ async function main() {
       break;
     }
     default:
-      console.log("Commands:\n  login --storyboard <file>\n  run --storyboard <file>\n  resume --run <id> [--approve-all|--approve a,b|--reject c]\n  evaluate (--run <id> | --video <file> [--target <sec>])");
+      console.log("Commands:\n  explore [--tools|--full]\n  login --storyboard <file>\n  probe-act --url <url> --intent \"<action>\"\n  run --storyboard <file>\n  resume --run <id> [--approve-all|--approve a,b|--reject c]\n  evaluate (--run <id> | --video <file> [--target <sec>])");
   }
 }
 

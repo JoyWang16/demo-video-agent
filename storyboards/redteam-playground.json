@@ -1,5 +1,5 @@
 {
-  "_notes": "Target project is set only in b2-choose-target (change the option name to switch projects). Dwell is auto-computed from caption reading time; only functional inter-action waits remain. Fragile selectors are marked VERIFY (dropdown/textbox names, attack-types scroll target, final Run button) — confirm against the live UI or switch to Stagehand act(). The flow deliberately STOPS before clicking Run (b8 only hovers): clicking it would launch a real, billable red-team job.",
+  "_notes": "Target project is set only in b2-choose-target (change the option name to switch projects). Dwell is auto-computed from caption reading time. Resilience: the three most fragile steps (open-config Run, and both Next buttons) are pure act() steps resolved live via the accessibility tree + Azure; other click/hover steps keep a selector as the fast path with an intent fallback for self-heal. The flow deliberately STOPS before launching (b8 only hovers Run). act()/self-heal needs Azure configured; without it those steps run deterministic-only.",
   "spec": {
     "id": "neo-redteam-playground",
     "title": "Neo: Red-teaming a model from the Catalog",
@@ -29,11 +29,11 @@
       "id": "b2-choose-target",
       "caption": "Launch a red-teaming evaluation and choose the project to test.",
       "actions": [
-        { "type": "click", "selector": "role=button[name=\"Run\"] >> nth=1", "note": "opens the run config; does NOT launch" },
+        { "type": "act", "intent": "click the second Run button to open the evaluation configuration (this only opens config, it does not launch anything)" },
         { "type": "waitMs", "ms": 1500 },
-        { "type": "click", "selector": "role=button[name=/Imported from/]", "note": "target dropdown; VERIFY name against live UI" },
+        { "type": "click", "selector": "role=button[name=/Imported from/]", "intent": "open the target-project dropdown", "note": "target dropdown; VERIFY name against live UI" },
         { "type": "waitMs", "ms": 800 },
-        { "type": "click", "selector": "role=option[name=\"Playground\"]", "note": "the project to demo; change to switch projects" }
+        { "type": "click", "selector": "role=option[name=\"Playground\"]", "intent": "select the Playground project from the dropdown", "note": "the project to demo; change to switch projects" }
       ]
     },
     {
@@ -72,7 +72,7 @@
       "id": "b7-attack-types",
       "caption": "Review the attack families that will be run against it.",
       "actions": [
-        { "type": "click", "selector": "role=button[name=\"Next\"]", "note": "advance: endpoint page -> Attacks page" },
+        { "type": "act", "intent": "click the Next button to continue to the Attacks page" },
         { "type": "waitMs", "ms": 1200 }
       ]
     },
@@ -80,9 +80,9 @@
       "id": "b8-ready",
       "caption": "Review everything, then launch the red-teaming run.",
       "actions": [
-        { "type": "click", "selector": "role=button[name=\"Next\"]", "note": "advance: Attacks page -> Review & run page" },
+        { "type": "act", "intent": "click the Next button to continue to the Review and run page" },
         { "type": "waitMs", "ms": 1200 },
-        { "type": "hover", "selector": "role=button[name=\"Run\"]", "note": "draw the eye to Run WITHOUT clicking it (clicking launches a real, billable job)" }
+        { "type": "hover", "selector": "role=button[name=\"Run\"]", "intent": "hover over the Run button that launches the red-teaming run, without clicking it", "note": "draw the eye to Run WITHOUT clicking it (clicking launches a real, billable job)" }
       ]
     }
   ]

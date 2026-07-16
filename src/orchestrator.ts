@@ -1,6 +1,7 @@
 import path from "node:path";
 import fs from "node:fs";
 import { loadStoryboard, validateStoryboard } from "./storyboard.ts";
+import { preflight } from "./preflight.ts";
 import { recordStoryboard } from "./recorder.ts";
 import { processClip, concat } from "./ffmpeg.ts";
 import { deliver } from "./deliver.ts";
@@ -21,6 +22,11 @@ export async function startRun(storyboardFile: string): Promise<RunState> {
     v.errors.forEach((e) => console.error(`  ✗ ${e}`));
     throw new Error("Storyboard failed validation; refusing to record.");
   }
+
+  // Freshness/verification gate: refresh Neo inventory (content) + verify the
+  // app is reachable, authenticated, and the entry screen matches (structure).
+  console.log("\n▶ Preflight");
+  await preflight(sb);
 
   const runId = newRunId(sb.spec.id);
   const dir = runDir(runId);

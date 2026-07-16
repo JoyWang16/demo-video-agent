@@ -46,3 +46,12 @@ export const azureEnv = {
   deployment: process.env.AZURE_DEPLOYMENT, // e.g. gpt-4o deployment name
   visionDeployment: process.env.AZURE_VISION_DEPLOYMENT ?? process.env.AZURE_DEPLOYMENT,
 };
+
+/** Neo MCP (comprehension layer, READ-ONLY). The platform-scoped key is usually
+ * embedded in the URL path; NEO_MCP_TOKEN is only for endpoints that want an
+ * Authorization header instead. Transport defaults to Streamable HTTP. */
+export const neoMcp = {
+  url: process.env.NEO_MCP_URL,
+  token: process.env.NEO_MCP_TOKEN,
+  transport: (process.env.NEO_MCP_TRANSPORT === "sse" ? "sse" : "http") as "http" | "sse",
+};

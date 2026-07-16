@@ -1,0 +1,102 @@
+import fs from "node:fs";
+import path from "node:path";
+import { NeoClient } from "./neo.ts";
+import { DATA_DIR, ensureDirs } from "../config.ts";
+
+/**
+ * Exploration = build a structured inventory of the org from the Neo MCP so a
+ * later stage can decide WHAT to demo. No model calls, no cost, read-only.
+ */
+
+const PER_PROJECT_READS = [
+  "get_project_profile",
+  "list_project_scans",
+  "list_redteam_runs",
+  "list_bias_runs",
+  "list_pentest_scans",
+  "list_compliance_audits",
+] as const;
+
+export const INVENTORY_PATH = path.join(DATA_DIR, "inventory.json");
+
+/** `explore --tools`: just print the server's tool catalog (pure discovery). */
+export async function exploreTools(): Promise<void> {
+  const neo = new NeoClient();
+  await neo.connect();
+  try {
+    const tools = await neo.listTools();
+    console.log(`\n  Neo MCP exposes ${tools.length} tool(s):\n`);
+    for (const t of tools) {
+      const kind = neo.isReadOnly(t.name) ? "read " : "WRITE";
+      const desc = t.description ? " — " + t.description.replace(/\s+/g, " ").slice(0, 90) : "";
+      console.log(`   [${kind}] ${t.name}${desc}`);
+    }
+    console.log(`\n  Only [read ] tools are ever callable by explore.`);
+  } finally {
+    await neo.close();
+  }
+}
+
+function toArray(v: unknown): any[] {
+  if (Array.isArray(v)) return v;
+  const o = v as Record<string, unknown> | null;
+  for (const k of ["items", "projects", "data", "results"]) {
+    if (o && Array.isArray(o[k])) return o[k] as any[];
+  }
+  return v ? [v] : [];
+}
+
+/** `explore [--full]`: list projects (+ per-project governance artifacts when
+ * --full) and write data/inventory.json. Per-call errors are captured, not
+ * fatal — so the first run also reveals exact tool arg shapes. */
+export async function exploreInventory(opts: { full?: boolean } = {}): Promise<string> {
+  ensureDirs();
+  const neo = new NeoClient();
+  await neo.connect();
+  const inventory: {
+    generatedAt: string;
+    org: unknown;
+    tools: { name: string; readOnly: boolean }[];
+    projects: any[];
+  } = { generatedAt: new Date().toISOString(), org: null, tools: [], projects: [] };
+
+  try {
+    const tools = await neo.listTools();
+    inventory.tools = tools.map((t) => ({ name: t.name, readOnly: neo.isReadOnly(t.name) }));
+
+    if (neo.hasTool("whoami")) {
+      try { inventory.org = await neo.read("whoami"); } catch { /* optional */ }
+    }
+
+    const projects = neo.hasTool("list_projects") ? toArray(await neo.read("list_projects")) : [];
+    console.log(`  Found ${projects.length} project(s).`);
+
+    for (const p of projects) {
+      const id = (p.id ?? p.projectId ?? p._id) as string | undefined;
+      const entry: any = { id, name: p.name, description: p.description };
+      if (opts.full && id) {
+        for (const tool of PER_PROJECT_READS) {
+          if (!neo.hasTool(tool)) continue;
+          const key = neo.projectArgName(tool) ?? "projectId";
+          try {
+            const r = await neo.read(tool, { [key]: id });
+            if (tool === "get_project_profile") entry.profile = r;
+            else {
+              const arr = toArray(r);
+              entry[tool.replace(/^list_/, "")] = { count: arr.length, items: arr.slice(0, 15) };
+            }
+          } catch (e) {
+            (entry.errors ??= {})[tool] = (e as Error).message;
+          }
+        }
+      }
+      inventory.projects.push(entry);
+    }
+  } finally {
+    await neo.close();
+  }
+
+  fs.writeFileSync(INVENTORY_PATH, JSON.stringify(inventory, null, 2), "utf8");
+  console.log(`  Inventory -> ${path.relative(process.cwd(), INVENTORY_PATH)} (${inventory.projects.length} projects, ${inventory.tools.length} tools).`);
+  return INVENTORY_PATH;
+}
