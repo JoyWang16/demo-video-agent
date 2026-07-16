@@ -11,7 +11,11 @@
     "login": "node --experimental-strip-types src/cli.ts login",
     "run:example": "node --experimental-strip-types src/cli.ts run --storyboard storyboards/example-projects-overview.json",
     "resume": "node --experimental-strip-types src/cli.ts resume",
-    "evaluate": "node --experimental-strip-types src/cli.ts evaluate"
+    "evaluate": "node --experimental-strip-types src/cli.ts evaluate",
+    "postinstall": "playwright install chromium"
+  },
+  "engines": {
+    "node": ">=22.6.0"
   },
   "dependencies": {
     "@ai-sdk/azure": "^1.3.0",

@@ -35,13 +35,23 @@ improvises on camera. AI (optional) is confined to *writing* the storyboard and
 
 ## Setup
 
-Requires Node 22+ and ffmpeg/ffprobe on PATH.
+Requires **Node ≥ 22.6** (pinned in `.nvmrc` / `engines`; the CLI runs `.ts`
+directly via `--experimental-strip-types`) and **ffmpeg/ffprobe on PATH**.
+
+ffmpeg is a system binary, not an npm dependency — install it once per OS:
+`brew install ffmpeg` (macOS) · `sudo apt install ffmpeg` (Debian/Ubuntu) ·
+`choco install ffmpeg` (Windows).
 
 ```bash
-npm install
-npx playwright install chromium     # downloads the browser (not needed to typecheck)
+nvm use                             # or fnm/volta — picks Node from .nvmrc
+npm ci                              # exact versions from package-lock.json;
+                                    # postinstall also fetches Chromium
 cp .env.example .env                # hai-neo uses MS SSO — no creds needed here
 ```
+
+> Use `npm ci` (not `npm install`) for a reproducible install: it installs the
+> exact locked dependency tree and won't silently update `package-lock.json`.
+> The `postinstall` hook runs `playwright install chromium` for you.
 
 ## Run the single-video happy path
 
