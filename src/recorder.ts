@@ -7,7 +7,7 @@ import { cutClip } from "./ffmpeg.ts";
 import { computeDwellSec } from "./timing.ts";
 import { runAction, needsAgent, type AgentPage } from "./executor.ts";
 import { azureConfigured } from "./agent-llm.ts";
-import { selfHeal } from "./self-heal.ts";
+import { selfHeal, selfHealFill } from "./self-heal.ts";
 
 export interface RecordedClip {
   beatId: string;
@@ -72,6 +72,7 @@ export async function recordStoryboard(sb: Storyboard, outDir: string): Promise<
     const agent: AgentPage = {
       page,
       heal: healEnabled ? (intent, kind) => selfHeal(page, intent, kind) : undefined,
+      healFill: healEnabled ? (intent, value) => selfHealFill(page, intent, value) : undefined,
     };
 
     const segments: { beatId: string; caption: string; startSec: number; captionStartSec: number }[] = [];

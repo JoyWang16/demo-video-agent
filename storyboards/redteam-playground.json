@@ -1,5 +1,5 @@
 {
-  "_notes": "Target project is set only in b2-choose-target (change the option name to switch projects). Dwell is auto-computed from caption reading time. Resilience: the three most fragile steps (open-config Run, and both Next buttons) are pure act() steps resolved live via the accessibility tree + Azure; other click/hover steps keep a selector as the fast path with an intent fallback for self-heal. The flow deliberately STOPS before launching (b8 only hovers Run). act()/self-heal needs Azure configured; without it those steps run deterministic-only.",
+  "_notes": "Target project is set only in b2-choose-target. Dwell auto-computed from caption reading time. Resilience: b2's open-config Run stays a pure act() step (no unique selector — it's the 2nd Run among catalog cards). All other click/hover steps keep a selector fast-path + an intent fallback for self-heal. Selectors reflect the current UI as of this run (advance = 'Next' then 'Review setup'; launch button = 'Start red teaming eval'); if the team renames them again, self-heal absorbs it and you can refresh the selector from the logged resolution. The flow STOPS before launching (b8 only hovers). act()/self-heal needs Azure configured.",
   "spec": {
     "id": "neo-redteam-playground",
     "title": "Neo: Red-teaming a model from the Catalog",
@@ -70,9 +70,9 @@
     },
     {
       "id": "b7-attack-types",
-      "caption": "Review the attack families that will be run against it.",
+      "caption": "Every attack family is included \u2014 full-coverage red-teaming.",
       "actions": [
-        { "type": "act", "intent": "click the Next button to continue to the Attacks page" },
+        { "type": "click", "selector": "role=button[name=\"Next\"]", "intent": "click the Next button to continue to the Attacks page" },
         { "type": "waitMs", "ms": 1200 }
       ]
     },
@@ -80,9 +80,9 @@
       "id": "b8-ready",
       "caption": "Review everything, then launch the red-teaming run.",
       "actions": [
-        { "type": "act", "intent": "click the Next button to continue to the Review and run page" },
+        { "type": "click", "selector": "role=button[name=\"Review setup\"]", "intent": "click the 'Review setup' button in the top-right corner to continue to the review page" },
         { "type": "waitMs", "ms": 1200 },
-        { "type": "hover", "selector": "role=button[name=\"Run\"]", "intent": "hover over the Run button that launches the red-teaming run, without clicking it", "note": "draw the eye to Run WITHOUT clicking it (clicking launches a real, billable job)" }
+        { "type": "hover", "selector": "role=button[name=\"Start red teaming eval\"]", "intent": "hover over the button that launches the red-teaming run, without clicking it", "note": "draw the eye to the launch button WITHOUT clicking it (clicking launches a real, billable job)" }
       ]
     }
   ]

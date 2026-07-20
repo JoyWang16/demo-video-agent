@@ -27,6 +27,25 @@ export const VideoSpecSchema = z.object({
 });
 export type VideoSpec = z.infer<typeof VideoSpecSchema>;
 
+// ---- Generation spec: the small brief a HUMAN provides to auto-generate a
+// storyboard (Phase B). The generator turns this + the Neo inventory into a
+// full, act()-first Storyboard draft.
+export const GenerationSpecSchema = z.object({
+  project: z.string().min(1), // project name (or id) to demo; looked up in the inventory
+  evalType: z.string().min(1), // e.g. "red-team", "bias", "pentest", "compliance"
+  targetLengthSec: z.number().positive().default(60),
+  tolerancePct: z.number().min(0).max(1).default(0.4),
+  captions: z.boolean().default(true),
+  resolution: ResolutionSchema.default({ width: 1280, height: 720 }),
+  audience: z.string().optional(),
+  tone: z.string().optional(),
+  loginUrl: z.string().url().default("https://app.hai-neo.com/home"),
+  appBaseUrl: z.string().url().default("https://app.hai-neo.com"),
+  successUrlIncludes: z.string().default("/home"),
+  extraGuidance: z.string().optional(), // free-form steering notes for the script
+});
+export type GenerationSpec = z.infer<typeof GenerationSpecSchema>;
+
 // ---- Actions: the only verbs a recording is allowed to perform ------------
 // NOTE: this is intentionally a *read/navigation-only* allowlist. There is no
 // "delete"/"submit form"/"confirm" verb. Destructive actions in the target app
@@ -48,6 +67,10 @@ export const ActionSchema = z.discriminatedUnion("type", [
   // pure natural-language step — no selector; always resolved live via act().
   // For flows where selectors were never captured (e.g. generated storyboards).
   z.object({ type: z.literal("act"), intent: z.string(), note: z.string().optional() }),
+  // natural-language fill — resolve the target field live (no selector) and type
+  // `value` into it. Value may reference env secrets via "$VAR" (resolved at
+  // runtime, never logged). Used by generated storyboards for form input.
+  z.object({ type: z.literal("actFill"), intent: z.string(), value: z.string(), note: z.string().optional() }),
 ]);
 export type Action = z.infer<typeof ActionSchema>;
 

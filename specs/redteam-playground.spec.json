@@ -1,0 +1,11 @@
+{
+  "project": "Playground",
+  "evalType": "red-team",
+  "targetLengthSec": 60,
+  "audience": "prospective customers",
+  "tone": "clear and confident",
+  "loginUrl": "https://app.hai-neo.com/home",
+  "appBaseUrl": "https://app.hai-neo.com",
+  "successUrlIncludes": "/home",
+  "extraGuidance": "Start from the Catalog. Walk through opening the red-teaming config, choosing the Playground project, pointing it at a model endpoint, then reach the review screen. STOP before launching — the last beat only hovers the launch button."
+}

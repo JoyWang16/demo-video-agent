@@ -105,6 +105,63 @@ async function doAct(loc: Locator, kind: Kind): Promise<void> {
   else await loc.hover(opts);
 }
 
+const FILL_SELECTOR = 'input, textarea, [contenteditable="true"], [role="textbox"]';
+
+async function fillCandidates(page: Page): Promise<Candidate[]> {
+  await page.locator(FILL_SELECTOR).first().waitFor({ state: "visible", timeout: 10_000 }).catch(() => {});
+  const base = page.locator(FILL_SELECTOR);
+  const count = Math.min(await base.count(), MAX_CANDIDATES);
+  const out: Candidate[] = [];
+  for (let i = 0; i < count; i++) {
+    const loc = base.nth(i);
+    if (!(await loc.isVisible().catch(() => false))) continue;
+    if (!(await loc.isEditable().catch(() => false))) continue;
+    const info = await loc
+      .evaluate((el) => {
+        const e = el as unknown as {
+          getAttribute(n: string): string | null;
+          tagName: string;
+          id?: string;
+        };
+        // Prefer a visible label, then aria-label/placeholder/name/title.
+        let labelText = "";
+        try {
+          const doc = (e as unknown as {
+            ownerDocument?: { querySelector(s: string): { textContent: string | null } | null };
+          }).ownerDocument;
+          const id = e.getAttribute("id");
+          if (doc && id) labelText = doc.querySelector(`label[for="${id}"]`)?.textContent ?? "";
+        } catch {
+          /* ignore */
+        }
+        const name =
+          e.getAttribute("aria-label") ||
+          labelText ||
+          e.getAttribute("placeholder") ||
+          e.getAttribute("name") ||
+          e.getAttribute("title") ||
+          "";
+        return { role: e.getAttribute("role") || e.tagName.toLowerCase(), name: name.replace(/\s+/g, " ").trim().slice(0, 80) };
+      })
+      .catch(() => null);
+    if (info) out.push({ loc, role: info.role, name: info.name });
+  }
+  return out;
+}
+
+/** Natural-language fill: find the target field live, type `value` into it. */
+export async function selfHealFill(page: Page, intent: string, value: string): Promise<void> {
+  const cands = await fillCandidates(page);
+  if (cands.length === 0) throw new Error(`self-heal fill: no input fields found for "${intent}"`);
+  const idx = await pickIndex(
+    cands.map(({ role, name }) => ({ role, name })),
+    `Fill this field: ${intent}`
+  );
+  if (idx < 0 || idx >= cands.length) throw new Error(`self-heal fill: model could not match field for "${intent}"`);
+  const chosen = cands[idx]!;
+  await chosen.loc.fill(value, { timeout: 6000 });
+  console.log(`  self-heal filled "${intent}" -> <${chosen.role}> ${chosen.name}`);
+}
 export async function selfHeal(page: Page, intent: string, kind: Kind): Promise<void> {
   const cache = loadCache();
   const key = `${page.url().split("?")[0]}::${kind}::${intent}`;
