@@ -5,7 +5,15 @@ import { computeDwellSec } from "./timing.ts";
 /** Words that suggest a mutating/irreversible action. A recording must never
  * perform these against the live app. This is a coarse but cheap safety net;
  * the real guarantee is the read/navigation-only Action allowlist in types.ts. */
-const DESTRUCTIVE = /\b(delete|remove|destroy|drop|run\s+scan|create\s+(scan|audit|project)|pentest|red[-\s]?team|pay|purchase|submit|confirm|approve|save\s+changes)\b/i;
+// HARD block: unambiguous commit / irreversible / costly actions. These do not
+// collide with feature *names* (a demo about "red-teaming" must be able to say
+// "red-team" in a navigation intent without being blocked).
+const DESTRUCTIVE = /\b(delete|destroy|erase|\bpay\b|purchase|checkout|submit|\bconfirm\b|save\s+changes)\b/i;
+// SOFT warn: launch-ish phrasing. Collides with ordinary English ("the run",
+// "launches"), so we surface it at the review gate instead of blocking — the
+// demo is meant to STOP before launch (enforced by the generator prompt + the
+// human review gate), and this flags anything that looks like it might trigger.
+const LAUNCHISH = /(launch|execut|initiat)\w*|\b(start|run|begin|trigger)\s+(the\s+)?(scan|run|eval|audit|red[-\s]?team|pentest)\b/i;
 
 export interface ValidationResult {
   ok: boolean;
@@ -60,7 +68,9 @@ export function validateStoryboard(sb: Storyboard): ValidationResult {
     // feature by name (e.g. "red-teaming") without performing it.
     const actionText = b.actions.map((a) => JSON.stringify(a)).join(" ");
     if (DESTRUCTIVE.test(actionText)) {
-      errors.push(`Beat "${b.id}" has a possibly destructive/costly action. Blocked.`);
+      errors.push(`Beat "${b.id}" has a possibly destructive/costly action (commit verb). Blocked.`);
+    } else if (LAUNCHISH.test(actionText)) {
+      warnings.push(`Beat "${b.id}" has launch-like phrasing — confirm at review it does NOT actually trigger a run.`);
     }
     if (captions && !b.caption.trim()) {
       warnings.push(`Beat "${b.id}" has no caption but spec.captions=true.`);

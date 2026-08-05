@@ -42,21 +42,43 @@ const GenOutputSchema = z.object({
 });
 
 const SYSTEM = [
-  "You script short, non-destructive product-demo videos of a web app as a sequence of 'beats'.",
-  "Each beat is one clip: a concise on-screen caption (<= ~70 chars, reads in a couple seconds)",
-  "plus an ordered list of actions. You may ONLY use these action types:",
+  "You convert a human author's demo description into an executable storyboard for a",
+  "short, non-destructive product-demo video of a web app, as a sequence of 'beats'.",
+  "Each beat is one clip: a concise on-screen caption (<= ~70 chars, reads in a couple",
+  "seconds) plus an ordered list of actions. You may ONLY use these action types:",
   "  - goto {url}: navigate to an absolute URL under the app's base URL.",
   "  - act {intent}: a natural-language click/open/select, e.g. 'click the Run button on the second card'.",
   "  - actFill {intent, value}: type a value into a field described in natural language.",
-  "  - waitMs {ms}: a short pause for the UI to settle (e.g. 800-1500ms) between related actions.",
+  "  - waitMs {ms}: a short pause (e.g. 800-1500ms) for the UI to settle between related actions.",
   "You NEVER write CSS selectors — describe elements by their visible label/role/purpose.",
-  "STRICT SAFETY: never perform or describe a destructive/irreversible action. Do NOT launch,",
-  "start, submit, run, pay for, delete, or confirm anything. The demo must STOP just before any",
-  "final 'launch/run/start' action — the last beat should only HOVER or point at it, never trigger it.",
-  "Keep the whole video close to the target length; captions narrate the feature for the audience.",
+  "",
+  "GUIDED MODE (when the author provides steps): convert EACH author step into EXACTLY ONE",
+  "beat, in the SAME order. Do NOT add, remove, merge, split, or reorder steps. Take any",
+  "literal values to type from the author's step text. Use the author's caption if given,",
+  "otherwise write a short one. You are a translator from description to actions, not an author.",
+  "",
+  "STRICT SAFETY: never perform or describe a destructive/irreversible/costly action. Do NOT",
+  "launch, start, submit, run, pay for, delete, or confirm anything. Naming a feature (e.g.",
+  "'the red-teaming evaluation') is fine; TRIGGERING it is not. The final beat must only HOVER",
+  "or point at any launch control — never trigger it.",
 ].join(" ");
 
 function buildPrompt(spec: GenerationSpec, inventoryText: string): string {
+  const guided = spec.steps && spec.steps.length > 0;
+  const stepsBlock = guided
+    ? [
+        "",
+        "AUTHOR-PROVIDED STEPS — convert each into exactly one beat, in this order:",
+        ...spec.steps!.map(
+          (s, i) => `  ${i + 1}. ${s.do}${s.caption ? `  [caption: ${s.caption}]` : ""}`
+        ),
+      ].join("\n")
+    : [
+        "",
+        "No explicit steps were provided. Propose a concise, sensible beat sequence for this demo",
+        "(navigate in, walk through the setup, end by reviewing the ready state without launching).",
+      ].join("\n");
+
   return [
     `Video to script: a demo of the "${spec.evalType}" evaluation for the project "${spec.project}" in the Neo app.`,
     spec.audience ? `Audience: ${spec.audience}.` : "",
@@ -64,14 +86,11 @@ function buildPrompt(spec: GenerationSpec, inventoryText: string): string {
     `Target length: ~${spec.targetLengthSec}s. App base URL: ${spec.appBaseUrl}.`,
     spec.extraGuidance ? `Extra guidance: ${spec.extraGuidance}` : "",
     "",
-    "Context — what exists in this Neo account (read-only inventory; use it to ground the demo,",
-    "e.g. to reference the real project and the evaluation types available):",
+    "Context — read-only inventory of this Neo account (ground the demo in the real project):",
     inventoryText,
+    stepsBlock,
     "",
-    `Produce a JSON object with: title, description, feature, and beats[]. The first beat should`,
-    `navigate (goto) to the app and reach the relevant starting screen; subsequent beats walk through`,
-    `setting up the ${spec.evalType} evaluation for ${spec.project}; the final beat reviews the ready`,
-    `state and only HOVERS the launch control without triggering it.`,
+    "Produce a JSON object with: title, description, feature, and beats[].",
   ]
     .filter(Boolean)
     .join("\n");

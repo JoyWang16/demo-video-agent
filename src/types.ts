@@ -43,6 +43,14 @@ export const GenerationSpecSchema = z.object({
   appBaseUrl: z.string().url().default("https://app.hai-neo.com"),
   successUrlIncludes: z.string().default("/home"),
   extraGuidance: z.string().optional(), // free-form steering notes for the script
+  // Human-described demo: an ORDERED list of steps the author wants shown. When
+  // present, the generator converts each step into exactly one beat, in order,
+  // without inventing/removing/reordering steps. `do` = what happens this step
+  // (include any values to type, e.g. "type 'gpt-4o-mini' into the model field");
+  // `caption` optional (author's words; the model writes one if omitted).
+  steps: z
+    .array(z.object({ do: z.string().min(1), caption: z.string().optional() }))
+    .optional(),
 });
 export type GenerationSpec = z.infer<typeof GenerationSpecSchema>;
 
