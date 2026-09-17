@@ -191,10 +191,10 @@ in the inventory (`spec.feature`/generation `project` vs inventory names).
 Neo data, instead of hand-authoring.
 
 **Current state.** `src/comprehension/storyboard-gen.ts` is **built** and passes
-typecheck + unit tests. It reads an inventory **file** (`--inventory`, default
-`data/inventory.json`), emits an **act()-first** storyboard (action set limited
-to `goto`/`act`/`actHover`/`actFill`/`waitMs` — zero selector hallucination), assembles a
-full `Storyboard`, runs `validateStoryboard`, and retries once on failure. CLI:
+typecheck (the repo has no test suite). It reads an inventory **file**
+(`--inventory`, default `data/inventory.json`), emits an **act()-first**
+storyboard (action set limited to `goto`/`act`/`actHover`/`actFill`/`waitMs` —
+zero selector hallucination), assembles a full `Storyboard`, runs `validateStoryboard`, and retries once on failure. CLI:
 `generate --spec <file> --inventory <file>`. Sample spec:
 `specs/redteam-playground.spec.json`.
 
