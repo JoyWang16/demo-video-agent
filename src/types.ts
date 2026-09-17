@@ -74,7 +74,14 @@ export const ActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("fill"), selector: z.string(), value: z.string(), note: z.string().optional() }),
   // pure natural-language step — no selector; always resolved live via act().
   // For flows where selectors were never captured (e.g. generated storyboards).
+  // NOTE: act CLICKS. To point at a control without activating it — which is how
+  // a demo stops before a launch button — use actHover, never an act whose
+  // intent merely says "hover" (validateStoryboard hard-blocks that).
   z.object({ type: z.literal("act"), intent: z.string(), note: z.string().optional() }),
+  // natural-language hover — resolve the target live and hover it, never click.
+  // This is the selector-free counterpart of `hover`, and the only safe way for
+  // a generated storyboard to end on a launch control.
+  z.object({ type: z.literal("actHover"), intent: z.string(), note: z.string().optional() }),
   // natural-language fill — resolve the target field live (no selector) and type
   // `value` into it. Value may reference env secrets via "$VAR" (resolved at
   // runtime, never logged). Used by generated storyboards for form input.

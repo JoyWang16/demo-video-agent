@@ -14,6 +14,10 @@ const DESTRUCTIVE = /\b(delete|destroy|erase|\bpay\b|purchase|checkout|submit|\b
 // demo is meant to STOP before launch (enforced by the generator prompt + the
 // human review gate), and this flags anything that looks like it might trigger.
 const LAUNCHISH = /(launch|execut|initiat)\w*|\b(start|run|begin|trigger)\s+(the\s+)?(scan|run|eval|audit|red[-\s]?team|pentest)\b/i;
+// HARD block: an `act` whose intent claims to hover. `act` always CLICKS, so
+// such a step does the opposite of what it says — and it is exactly how a demo
+// meant to stop at a launch button ends up pressing it. Use actHover instead.
+const HOVER_INTENT = /\b(hover|mouse\s*over|point(ing)?\s+at|without\s+clicking)\b/i;
 
 export interface ValidationResult {
   ok: boolean;
@@ -67,6 +71,15 @@ export function validateStoryboard(sb: Storyboard): ValidationResult {
     // Only ACTIONS can be destructive. A caption may legitimately describe a
     // feature by name (e.g. "red-teaming") without performing it.
     const actionText = b.actions.map((a) => JSON.stringify(a)).join(" ");
+    // A click wearing a hover's clothes. Caught before the duration/denylist
+    // checks because it is unambiguous and the consequence is irreversible.
+    for (const a of b.actions) {
+      if (a.type === "act" && HOVER_INTENT.test(a.intent)) {
+        errors.push(
+          `Beat "${b.id}" uses act() with a hover intent ("${a.intent}") — act always CLICKS. Use actHover. Blocked.`
+        );
+      }
+    }
     if (DESTRUCTIVE.test(actionText)) {
       errors.push(`Beat "${b.id}" has a possibly destructive/costly action (commit verb). Blocked.`);
     } else if (LAUNCHISH.test(actionText)) {

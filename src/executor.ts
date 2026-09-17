@@ -17,7 +17,11 @@ export interface AgentPage {
 /** Does this set of actions require the self-heal capability (Azure)? */
 export function needsAgent(actions: Action[]): boolean {
   return actions.some(
-    (a) => a.type === "act" || a.type === "actFill" || ("intent" in a && Boolean(a.intent))
+    (a) =>
+      a.type === "act" ||
+      a.type === "actHover" ||
+      a.type === "actFill" ||
+      ("intent" in a && Boolean(a.intent))
   );
 }
 
@@ -47,6 +51,11 @@ export async function runAction(ap: AgentPage, a: Action): Promise<void> {
     case "act": {
       if (!ap.heal) throw new Error(`act step needs Azure self-heal but it isn't enabled: "${a.intent}"`);
       await ap.heal(a.intent, "click");
+      return;
+    }
+    case "actHover": {
+      if (!ap.heal) throw new Error(`actHover step needs Azure self-heal but it isn't enabled: "${a.intent}"`);
+      await ap.heal(a.intent, "hover");
       return;
     }
     case "actFill": {

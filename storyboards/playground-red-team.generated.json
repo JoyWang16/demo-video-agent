@@ -23,7 +23,7 @@
   "beats": [
     {
       "id": "beat1",
-      "caption": "Start in the Catalog — every evaluation in one place.",
+      "caption": "Start in the Catalog \u2014 every evaluation in one place.",
       "actions": [
         {
           "type": "goto",
@@ -121,7 +121,7 @@
     },
     {
       "id": "beat7",
-      "caption": "Every attack family is included — full-coverage red-teaming.",
+      "caption": "Every attack family is included \u2014 full-coverage red-teaming.",
       "actions": [
         {
           "type": "act",
@@ -148,8 +148,8 @@
           "ms": 1200
         },
         {
-          "type": "act",
-          "intent": "hover over the launch button without clicking it"
+          "type": "actHover",
+          "intent": "the Start red teaming eval button (hover only \u2014 clicking launches a real, billable job)"
         }
       ],
       "maxDurationSec": 20,

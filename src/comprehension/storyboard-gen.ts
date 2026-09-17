@@ -12,8 +12,10 @@ import { validateStoryboard } from "../storyboard.ts";
  *
  * Design choices that keep generated storyboards RUNNABLE (not just plausible):
  *  - The model never invents CSS selectors (it can't see the DOM). The
- *    generation action set is restricted to goto / act / actFill / waitMs, all
- *    of which resolve live at record time via self-heal. Zero selector guessing.
+ *    generation action set is restricted to goto / act / actHover / actFill /
+ *    waitMs, all of which resolve live at record time via self-heal. Zero
+ *    selector guessing. actHover exists so a demo can stop ON a launch control
+ *    without pressing it — act() always clicks.
  *  - The model writes the semantic parts (title, description, feature, captions,
  *    natural-language intents). We fill the numeric/config parts (length,
  *    tolerance, resolution, captions, auth) from the spec deterministically.
@@ -26,6 +28,7 @@ import { validateStoryboard } from "../storyboard.ts";
 const GenActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("goto"), url: z.string().url() }),
   z.object({ type: z.literal("act"), intent: z.string() }),
+  z.object({ type: z.literal("actHover"), intent: z.string() }),
   z.object({ type: z.literal("actFill"), intent: z.string(), value: z.string() }),
   z.object({ type: z.literal("waitMs"), ms: z.number().int().positive() }),
 ]);
@@ -47,7 +50,8 @@ const SYSTEM = [
   "Each beat is one clip: a concise on-screen caption (<= ~70 chars, reads in a couple",
   "seconds) plus an ordered list of actions. You may ONLY use these action types:",
   "  - goto {url}: navigate to an absolute URL under the app's base URL.",
-  "  - act {intent}: a natural-language click/open/select, e.g. 'click the Run button on the second card'.",
+  "  - act {intent}: a natural-language CLICK/open/select, e.g. 'click the Run button on the second card'.",
+  "  - actHover {intent}: hover over an element WITHOUT clicking it, e.g. 'the Start evaluation button'.",
   "  - actFill {intent, value}: type a value into a field described in natural language.",
   "  - waitMs {ms}: a short pause (e.g. 800-1500ms) for the UI to settle between related actions.",
   "You NEVER write CSS selectors — describe elements by their visible label/role/purpose.",
@@ -60,7 +64,9 @@ const SYSTEM = [
   "STRICT SAFETY: never perform or describe a destructive/irreversible/costly action. Do NOT",
   "launch, start, submit, run, pay for, delete, or confirm anything. Naming a feature (e.g.",
   "'the red-teaming evaluation') is fine; TRIGGERING it is not. The final beat must only HOVER",
-  "or point at any launch control — never trigger it.",
+  "or point at any launch control — never trigger it. To do that you MUST use actHover: act()",
+  "always CLICKS, so an act() step whose intent says 'hover' would press the button. Never write",
+  "an act() intent containing 'hover', 'mouse over', 'point at', or 'without clicking'.",
 ].join(" ");
 
 function buildPrompt(spec: GenerationSpec, inventoryText: string): string {
