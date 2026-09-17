@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { NeoClient } from "./neo.ts";
+import { NeoRestClient } from "./neo-rest.ts";
 import { DATA_DIR, ensureDirs } from "../config.ts";
 
 /**
@@ -18,6 +19,68 @@ const PER_PROJECT_READS = [
 ] as const;
 
 export const INVENTORY_PATH = path.join(DATA_DIR, "inventory.json");
+
+// Per-project READ-ONLY eval collections probed over REST (label -> API path).
+// Each is listed with ?projectId=; counts feed the generator's "what exists".
+const REST_EVAL_COLLECTIONS: { label: string; path: string }[] = [
+  { label: "redteam", path: "redteam/runs" },
+  { label: "owaspllm", path: "owaspllm/runs" },
+  { label: "bias", path: "bias/runs" },
+  { label: "pentest", path: "pentest/scans" },
+  { label: "compliance", path: "compliance/audits" },
+  { label: "finops", path: "finops/runs" },
+  { label: "agentObservability", path: "agent-observability/runs" },
+];
+
+/** `explore --rest [--full]`: build inventory from the read-only REST API and
+ * write data/inventory.json in the SAME shape the generator already consumes. */
+export async function exploreInventoryRest(opts: { full?: boolean } = {}): Promise<string> {
+  ensureDirs();
+  const neo = new NeoRestClient();
+  const inventory: {
+    generatedAt: string;
+    source: string;
+    org: unknown;
+    projects: any[];
+  } = { generatedAt: new Date().toISOString(), source: "rest", org: null, projects: [] };
+
+  const ping = await neo.ping();
+  inventory.org = { scope: ping.scope, orgName: ping.orgName, projectId: ping.projectId };
+
+  const projects = await neo.listProjects();
+  console.log(`  Found ${projects.length} project(s).`);
+
+  for (const p of projects) {
+    const entry: any = { id: p.id, name: p.name, description: p.description };
+    if (opts.full) {
+      const evalTypes: string[] = [];
+      const runs: Record<string, number> = {};
+      for (const c of REST_EVAL_COLLECTIONS) {
+        try {
+          const items = await neo.listEval(c.path, p.id);
+          if (items.length > 0) {
+            evalTypes.push(c.label);
+            runs[c.label] = items.length;
+          }
+        } catch (e) {
+          (entry.errors ??= {})[c.label] = (e as Error).message;
+        }
+      }
+      entry.evalTypes = evalTypes;
+      entry.runs = runs;
+      try {
+        entry.profiles = (await neo.listProfiles(p.id)).slice(0, 5);
+      } catch (e) {
+        (entry.errors ??= {})["profiles"] = (e as Error).message;
+      }
+    }
+    inventory.projects.push(entry);
+  }
+
+  fs.writeFileSync(INVENTORY_PATH, JSON.stringify(inventory, null, 2), "utf8");
+  console.log(`  Inventory -> ${path.relative(process.cwd(), INVENTORY_PATH)} (${inventory.projects.length} projects, source=rest).`);
+  return INVENTORY_PATH;
+}
 
 /** `explore --tools`: just print the server's tool catalog (pure discovery). */
 export async function exploreTools(): Promise<void> {

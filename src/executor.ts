@@ -11,11 +11,14 @@ import { resolveSecret } from "./config.ts";
 export interface AgentPage {
   page: Page;
   heal?: (intent: string, kind: "click" | "hover") => Promise<void>;
+  healFill?: (intent: string, value: string) => Promise<void>;
 }
 
 /** Does this set of actions require the self-heal capability (Azure)? */
 export function needsAgent(actions: Action[]): boolean {
-  return actions.some((a) => a.type === "act" || ("intent" in a && Boolean(a.intent)));
+  return actions.some(
+    (a) => a.type === "act" || a.type === "actFill" || ("intent" in a && Boolean(a.intent))
+  );
 }
 
 const NATIVE_ATTEMPT_TIMEOUT_MS = 4000; // fail fast so self-heal kicks in quickly
@@ -44,6 +47,11 @@ export async function runAction(ap: AgentPage, a: Action): Promise<void> {
     case "act": {
       if (!ap.heal) throw new Error(`act step needs Azure self-heal but it isn't enabled: "${a.intent}"`);
       await ap.heal(a.intent, "click");
+      return;
+    }
+    case "actFill": {
+      if (!ap.healFill) throw new Error(`actFill step needs Azure self-heal but it isn't enabled: "${a.intent}"`);
+      await ap.healFill(a.intent, resolveSecret(a.value));
       return;
     }
     case "click":

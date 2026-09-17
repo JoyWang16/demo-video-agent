@@ -1,0 +1,159 @@
+{
+  "spec": {
+    "id": "playground-red-team",
+    "title": "Red-Team Evaluation Demo for Playground Project in Neo",
+    "description": "A clear, non-destructive walkthrough demo of setting up a red-team evaluation in the Neo app for the Playground project, aimed at prospective customers.",
+    "feature": "Red-team evaluation setup and review in Neo",
+    "targetLengthSec": 60,
+    "tolerancePct": 0.4,
+    "captions": true,
+    "resolution": {
+      "width": 1280,
+      "height": 720
+    },
+    "audience": "prospective customers",
+    "tone": "clear and confident"
+  },
+  "auth": {
+    "loginUrl": "https://app.hai-neo.com/home",
+    "usernameEnv": "NEO_USERNAME",
+    "passwordEnv": "NEO_PASSWORD",
+    "successUrlIncludes": "/home"
+  },
+  "beats": [
+    {
+      "id": "beat1",
+      "caption": "Start in the Catalog — every evaluation in one place.",
+      "actions": [
+        {
+          "type": "goto",
+          "url": "https://app.hai-neo.com/catalog"
+        },
+        {
+          "type": "waitMs",
+          "ms": 1200
+        }
+      ],
+      "maxDurationSec": 20,
+      "leadTrimSec": 0.4
+    },
+    {
+      "id": "beat2",
+      "caption": "Launch a red-teaming evaluation and pick the project to test.",
+      "actions": [
+        {
+          "type": "act",
+          "intent": "click the second Run button on the catalog"
+        },
+        {
+          "type": "waitMs",
+          "ms": 1200
+        },
+        {
+          "type": "act",
+          "intent": "choose the Playground project as the target"
+        }
+      ],
+      "maxDurationSec": 20,
+      "leadTrimSec": 0.4
+    },
+    {
+      "id": "beat3",
+      "caption": "Point it at the model endpoint you want to probe.",
+      "actions": [
+        {
+          "type": "actFill",
+          "intent": "fill the endpoint URL field",
+          "value": "https://api.openai.com"
+        },
+        {
+          "type": "actFill",
+          "intent": "fill the model field",
+          "value": "gpt-4o-mini"
+        },
+        {
+          "type": "actFill",
+          "intent": "fill the API key field",
+          "value": "sk-demo-key-not-real"
+        }
+      ],
+      "maxDurationSec": 20,
+      "leadTrimSec": 0.4
+    },
+    {
+      "id": "beat4",
+      "caption": "Set how long the evaluation should run.",
+      "actions": [
+        {
+          "type": "actFill",
+          "intent": "set the evaluation time limit field",
+          "value": "30 minutes"
+        }
+      ],
+      "maxDurationSec": 20,
+      "leadTrimSec": 0.4
+    },
+    {
+      "id": "beat5",
+      "caption": "Give the target model its instructions.",
+      "actions": [
+        {
+          "type": "actFill",
+          "intent": "type a short system prompt describing the target assistant's persona into the system prompt field",
+          "value": "You are an assistant helpful in testing and checking for vulnerabilities."
+        }
+      ],
+      "maxDurationSec": 20,
+      "leadTrimSec": 0.4
+    },
+    {
+      "id": "beat6",
+      "caption": "Add any endpoint details worth noting.",
+      "actions": [
+        {
+          "type": "actFill",
+          "intent": "type a brief endpoint note into the notes field",
+          "value": "This endpoint simulates a GPT-4 style assistant for testing purposes."
+        }
+      ],
+      "maxDurationSec": 20,
+      "leadTrimSec": 0.4
+    },
+    {
+      "id": "beat7",
+      "caption": "Every attack family is included — full-coverage red-teaming.",
+      "actions": [
+        {
+          "type": "act",
+          "intent": "click Next to continue to the Attacks page"
+        },
+        {
+          "type": "waitMs",
+          "ms": 1300
+        }
+      ],
+      "maxDurationSec": 20,
+      "leadTrimSec": 0.4
+    },
+    {
+      "id": "beat8",
+      "caption": "Review everything, ready to launch.",
+      "actions": [
+        {
+          "type": "act",
+          "intent": "click the Review setup button to continue to the review page"
+        },
+        {
+          "type": "waitMs",
+          "ms": 1200
+        },
+        {
+          "type": "act",
+          "intent": "hover over the launch button without clicking it"
+        }
+      ],
+      "maxDurationSec": 20,
+      "leadTrimSec": 0.4
+    }
+  ]
+}

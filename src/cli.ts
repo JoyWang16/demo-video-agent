@@ -1,7 +1,11 @@
 import { startRun, resumeRun } from "./orchestrator.ts";
 import { manualLogin } from "./login.ts";
-import { exploreTools, exploreInventory } from "./comprehension/explore.ts";
+import { exploreTools, exploreInventory, exploreInventoryRest } from "./comprehension/explore.ts";
 import { probeAct } from "./probe-act.ts";
+import { generateStoryboard } from "./comprehension/storyboard-gen.ts";
+import { GenerationSpecSchema } from "./types.ts";
+import fs from "node:fs";
+import path from "node:path";
 import { loadState } from "./runstate.ts";
 import { evaluateVideo, printScorecard } from "./eval/evaluate.ts";
 
@@ -27,8 +31,23 @@ async function main() {
       await probeAct(url, intent);
       break;
     }
+    case "generate": {
+      const specPath = arg("--spec");
+      if (!specPath) throw new Error("usage: generate --spec <spec.json> [--inventory <inventory.json>]");
+      const spec = GenerationSpecSchema.parse(JSON.parse(fs.readFileSync(specPath, "utf8")));
+      const inventoryPath = arg("--inventory") ?? path.join(process.cwd(), "data", "inventory.json");
+      const { storyboard, outPath, warnings } = await generateStoryboard(spec, inventoryPath);
+      warnings.forEach((w) => console.warn(`  ⚠ ${w}`));
+      console.log(`\n✓ Generated storyboard -> ${path.relative(process.cwd(), outPath)}`);
+      console.log(`  "${storyboard.spec.title}" — ${storyboard.beats.length} beats`);
+      for (const b of storyboard.beats) console.log(`   ${b.id}: ${b.caption}`);
+      console.log(`\n  Review it, tweak if needed, then record:`);
+      console.log(`    npm run cli -- run --storyboard ${path.relative(process.cwd(), outPath)}`);
+      break;
+    }
     case "explore": {
       if (has("--tools")) await exploreTools();
+      else if (has("--rest")) await exploreInventoryRest({ full: has("--full") });
       else await exploreInventory({ full: has("--full") });
       break;
     }
@@ -77,7 +96,7 @@ async function main() {
       break;
     }
     default:
-      console.log("Commands:\n  explore [--tools|--full]\n  login --storyboard <file>\n  probe-act --url <url> --intent \"<action>\"\n  run --storyboard <file>\n  resume --run <id> [--approve-all|--approve a,b|--reject c]\n  evaluate (--run <id> | --video <file> [--target <sec>])");
+      console.log("Commands:\n  explore [--tools | --full | --rest [--full]]\n  generate --spec <spec.json> [--inventory <file>]\n  login --storyboard <file>\n  probe-act --url <url> --intent \"<action>\"\n  run --storyboard <file>\n  resume --run <id> [--approve-all|--approve a,b|--reject c]\n  evaluate (--run <id> | --video <file> [--target <sec>])");
   }
 }
 

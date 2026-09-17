@@ -55,3 +55,10 @@ export const neoMcp = {
   token: process.env.NEO_MCP_TOKEN,
   transport: (process.env.NEO_MCP_TRANSPORT === "sse" ? "sse" : "http") as "http" | "sse",
 };
+
+/** Neo REST API (comprehension layer, READ-ONLY in this codebase). Separate from
+ * the MCP config on purpose. The client only ever issues GET requests. */
+export const neoRest = {
+  url: process.env.NEO_REST_URL ?? "https://agile-panther-41.eu-west-1.convex.site",
+  token: process.env.NEO_REST_TOKEN,
+};

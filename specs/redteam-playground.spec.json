@@ -1,0 +1,29 @@
+{
+  "project": "Playground",
+  "evalType": "red-team",
+  "targetLengthSec": 60,
+  "audience": "prospective customers",
+  "tone": "clear and confident",
+  "loginUrl": "https://app.hai-neo.com/home",
+  "appBaseUrl": "https://app.hai-neo.com",
+  "successUrlIncludes": "/home",
+  "extraGuidance": "Non-destructive walkthrough. Never launch the run — the last step only hovers the launch button.",
+  "steps": [
+    { "do": "Go to https://app.hai-neo.com/catalog and wait for the catalog to load.",
+      "caption": "Start in the Catalog — every evaluation in one place." },
+    { "do": "Click the second Run button on the catalog to open the evaluation configuration (this only opens config, it does not launch anything), then choose the Playground project as the target.",
+      "caption": "Launch a red-teaming evaluation and pick the project to test." },
+    { "do": "Type 'https://api.openai.com' into the endpoint URL field, 'gpt-4o-mini' into the model field, and 'sk-demo-key-not-real' into the API key field.",
+      "caption": "Point it at the model endpoint you want to probe." },
+    { "do": "Set the evaluation time limit to 30 minutes.",
+      "caption": "Set how long the evaluation should run." },
+    { "do": "Type a short system prompt describing the target assistant's persona into the system prompt field.",
+      "caption": "Give the target model its instructions." },
+    { "do": "Type a brief endpoint note into the notes field.",
+      "caption": "Add any endpoint details worth noting." },
+    { "do": "Click Next to continue to the Attacks page where all attack families are already selected.",
+      "caption": "Every attack family is included — full-coverage red-teaming." },
+    { "do": "Click 'Review setup' to continue to the review page, then hover over the launch button WITHOUT clicking it.",
+      "caption": "Review everything, ready to launch." }
+  ]
+}
