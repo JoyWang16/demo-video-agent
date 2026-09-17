@@ -69,7 +69,7 @@ Playwright `recordVideo`; self-heal is our Playwright-native replacement).
 | `src/storyboard.ts` | `loadStoryboard`, `validateStoryboard` (duration estimate via `computeDwellSec`; destructive-keyword denylist scans **actions**, not captions). |
 | `src/preflight.ts` | Pre-record gate: refresh MCP inventory (if configured) + verify auth + entry-screen waypoint. |
 | `src/recorder.ts` | The RECORD stage. Persistent-profile Playwright context + `recordVideo`; runs beats via `runAction`; wires `heal`/`healFill` when Azure configured + storyboard needs it; splits continuous take into per-beat clips. |
-| `src/executor.ts` | `runAction(AgentPage, Action)`: deterministic actions native; `click`/`hover` with `intent` = native-first then self-heal fallback; `act`/`actFill` = pure self-heal. `needsAgent(actions)` decides if Azure is required. |
+| `src/executor.ts` | `runAction(AgentPage, Action)`: deterministic actions native; `click`/`hover` with `intent` = native-first then self-heal fallback; `act` (clicks) / `actHover` (hovers) / `actFill` = pure self-heal. `needsAgent(actions)` decides if Azure is required. |
 | `src/self-heal.ts` | Playwright-native self-heal: enumerate visible+enabled interactive elements → Azure `pickIndex` → act via `getByRole`; cache to `data/heal-cache.json`. `selfHeal` (click/hover) + `selfHealFill` (form input). |
 | `src/agent-llm.ts` | `getAzureModel()` (AI SDK v5 model) + `azureConfigured()`. |
 | `src/ffmpeg.ts` | `probe`, `cutClip`, `writeAss` (styled captions timed `start→end`), `processClip` (scale/pad/fps + burn caption during dwell), `concat`, `sampleFrames`. |
@@ -98,7 +98,9 @@ Playwright `recordVideo`; self-heal is our Playwright-native replacement).
    - Neo MCP client is **read-only** (`src/comprehension/neo.ts` refuses write
      tools before any network call). Never relax this.
    - Every generated/authored demo **STOPS before any launch action** (last
-     beat only hovers). The generator's system prompt enforces this.
+     beat only hovers, via `actHover` — `act` always clicks). The generator's
+     system prompt enforces this, and `validateStoryboard` hard-blocks an `act`
+     whose intent claims to hover.
    - There is a **human review gate** between raw capture and delivery. Do not
      auto-approve in the default path.
 2. **No build step.** Code runs as `.ts` via `--experimental-strip-types`.
@@ -189,10 +191,10 @@ in the inventory (`spec.feature`/generation `project` vs inventory names).
 Neo data, instead of hand-authoring.
 
 **Current state.** `src/comprehension/storyboard-gen.ts` is **built** and passes
-typecheck + unit tests. It reads an inventory **file** (`--inventory`, default
-`data/inventory.json`), emits an **act()-first** storyboard (action set limited
-to `goto`/`act`/`actFill`/`waitMs` — zero selector hallucination), assembles a
-full `Storyboard`, runs `validateStoryboard`, and retries once on failure. CLI:
+typecheck (the repo has no test suite). It reads an inventory **file**
+(`--inventory`, default `data/inventory.json`), emits an **act()-first**
+storyboard (action set limited to `goto`/`act`/`actHover`/`actFill`/`waitMs` —
+zero selector hallucination), assembles a full `Storyboard`, runs `validateStoryboard`, and retries once on failure. CLI:
 `generate --spec <file> --inventory <file>`. Sample spec:
 `specs/redteam-playground.spec.json`.
 
@@ -213,7 +215,7 @@ full `Storyboard`, runs `validateStoryboard`, and retries once on failure. CLI:
 **Depends on.** F1/F2 for live inventory (works today with a hand-exported file).
 **Acceptance.** `generate` on real inventory produces a storyboard that `run`
 records end-to-end and that passes `evaluate`. Beat captions read cleanly.
-**Guardrail.** The generator must keep emitting only the 4 safe action types and
+**Guardrail.** The generator must keep emitting only the 5 safe action types and
 the "stop before launch" rule; keep the post-generation `validateStoryboard`.
 
 ---
